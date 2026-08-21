@@ -1,0 +1,10 @@
+{
+  "name": "Academic Publishing",
+  "description": "A modern, responsive academic journal platform featuring journal management, newsletter & subscriber dashboard, real-time live customer support chat console, cookie consent telemetry, and AI copilot services.",
+  "requestFramePermissions": [
+    "clipboard-read"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
