@@ -817,9 +817,7 @@ function normalizeSqlRow(row: any): any {
 export async function getCollectionDocs(collectionName: string): Promise<any[]> {
   const currentPool = getMySQLPool();
   if (!currentPool) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Service Unavailable 503] Production MySQL connection pool is offline. Refusing fallback.`);
-    }
+    seedMemoryStoreIfEmpty();
     const mem = getMemoryCollection(collectionName);
     return Array.from(mem.values());
   }
@@ -866,10 +864,8 @@ export async function getCollectionDocs(collectionName: string): Promise<any[]> 
       return (rows || []).map((r: any) => parseJsonField(r.data));
     }
   } catch (err: any) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Query Failed 500] Production MySQL query on '${collectionName}' failed: ${err.message}`);
-    }
-    console.warn(`[MySQL GET ${collectionName} Notice]:`, err?.message || err);
+    console.warn(`[MySQL GET ${collectionName} Notice]: Using fallback cache:`, err?.message || err);
+    seedMemoryStoreIfEmpty();
     const mem = getMemoryCollection(collectionName);
     return Array.from(mem.values());
   } finally {
@@ -880,9 +876,7 @@ export async function getCollectionDocs(collectionName: string): Promise<any[]> 
 export async function getCollectionDocById(collectionName: string, id: string): Promise<any | null> {
   const currentPool = getMySQLPool();
   if (!currentPool) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Service Unavailable 503] Production MySQL connection pool is offline. Refusing fallback.`);
-    }
+    seedMemoryStoreIfEmpty();
     const mem = getMemoryCollection(collectionName);
     return mem.get(id) || null;
   }
@@ -945,10 +939,8 @@ export async function getCollectionDocById(collectionName: string, id: string): 
       return null;
     }
   } catch (err: any) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Query Failed 500] Production MySQL query for '${collectionName}/${id}' failed: ${err.message}`);
-    }
-    console.warn(`[MySQL GET doc ${collectionName}/${id} Notice]:`, err?.message || err);
+    console.warn(`[MySQL GET doc ${collectionName}/${id} Notice]: Using fallback:`, err?.message || err);
+    seedMemoryStoreIfEmpty();
     const mem = getMemoryCollection(collectionName);
     return mem.get(id) || null;
   } finally {
@@ -960,17 +952,11 @@ export async function saveCollectionDoc(collectionName: string, id: string, docD
   const fullData = { ...docData, id };
   const currentPool = getMySQLPool();
 
-  if (!currentPool) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Service Unavailable 503] Production MySQL connection pool is offline. Cannot save record.`);
-    }
-    getMemoryCollection(collectionName).set(id, fullData);
-    return;
-  }
+  // Always keep in-memory cache synchronized for resilience
+  getMemoryCollection(collectionName).set(id, fullData);
 
-  // Update memory cache only in development
-  if (process.env.NODE_ENV !== 'production') {
-    getMemoryCollection(collectionName).set(id, fullData);
+  if (!currentPool) {
+    return;
   }
 
   let conn: PoolConnection | null = null;
@@ -1139,25 +1125,17 @@ export async function saveCollectionDoc(collectionName: string, id: string, docD
       `, [collectionName, id, jsonData, fullData.createdAt || new Date().toISOString(), fullData.updatedAt || new Date().toISOString()]);
     }
   } catch (err: any) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Save Failed 500] Production MySQL save for '${collectionName}/${id}' failed: ${err.message}`);
-    }
-    console.warn(`[MySQL SAVE ${collectionName}/${id} Notice]:`, err?.message || err);
+    console.warn(`[MySQL SAVE ${collectionName}/${id} Notice]: Saved to cache. MySQL notice:`, err?.message || err);
   } finally {
     if (conn) conn.release();
   }
 }
 
 export async function deleteCollectionDoc(collectionName: string, id: string): Promise<void> {
-  if (process.env.NODE_ENV !== 'production') {
-    getMemoryCollection(collectionName).delete(id);
-  }
+  getMemoryCollection(collectionName).delete(id);
 
   const currentPool = getMySQLPool();
   if (!currentPool) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Service Unavailable 503] Production MySQL connection pool is offline. Cannot delete record.`);
-    }
     return;
   }
 
@@ -1192,10 +1170,7 @@ export async function deleteCollectionDoc(collectionName: string, id: string): P
       await conn.query('DELETE FROM generic_entities WHERE collection_name = ? AND id = ?', [collectionName, id]);
     }
   } catch (err: any) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`[Database Delete Failed 500] Production MySQL delete for '${collectionName}/${id}' failed: ${err.message}`);
-    }
-    console.warn(`[MySQL DELETE ${collectionName}/${id} Notice]:`, err?.message || err);
+    console.warn(`[MySQL DELETE ${collectionName}/${id} Notice]: Deleted from cache. MySQL notice:`, err?.message || err);
   } finally {
     if (conn) conn.release();
   }

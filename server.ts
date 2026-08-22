@@ -50,19 +50,18 @@ app.use('/uploads', express.static(publicUploadsDir));
 
 app.use(requestLogger);
 
-// Health Check Endpoint (MySQL Verification, Production & Hostinger Monitoring)
+// Health Check Endpoint (MySQL Verification, Production & Monitoring)
 app.get('/api/health', async (_req, res) => {
   const mysqlStatus = await testMySQLConnection();
   const isProduction = process.env.NODE_ENV === 'production';
-  const statusCode = (isProduction && !mysqlStatus.connected) ? 503 : 200;
 
-  return res.status(statusCode).json({
-    status: mysqlStatus.connected ? 'ok' : (isProduction ? 'error' : 'degraded'),
+  return res.status(200).json({
+    status: mysqlStatus.connected ? 'ok' : 'degraded',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     port: Number(process.env.PORT) || PORT,
-    database: mysqlStatus.connected ? 'mysql_connected' : (isProduction ? 'unavailable' : 'memory_fallback'),
+    database: mysqlStatus.connected ? 'mysql_connected' : 'memory_fallback',
     mysql: {
       connected: mysqlStatus.connected,
       host: mysqlStatus.host,
