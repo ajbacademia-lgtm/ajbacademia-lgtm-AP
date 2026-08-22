@@ -22,14 +22,7 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      let user;
-      try {
-        user = await authService.login(email, password);
-      } catch (authErr) {
-        // Fallback to MockService for demo/mock users
-        user = await MockService.login(email, password);
-      }
-
+      const user = await authService.login(email, password);
       if (user) {
         login(user);
         navigate('/dashboard');

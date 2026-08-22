@@ -702,18 +702,15 @@ export const MockService = {
     return data || newUser;
   },
 
-  login: async (email: string, _password: string): Promise<User | null> => {
-    const users = await apiFetch<User[]>('/api/users');
-    if (users && Array.isArray(users)) {
-      const match = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (match) return match;
+  login: async (email: string, password: string): Promise<User | null> => {
+    const res = await safeFetchJson<{ success: boolean; user: User }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    if (res && res.success && res.user) {
+      return res.user;
     }
-    return {
-      id: 'u_admin',
-      name: 'Academic Admin',
-      email,
-      role: 'admin'
-    };
+    return null;
   },
 
   getArticlesByAuthor: async (email: string): Promise<Article[]> => {

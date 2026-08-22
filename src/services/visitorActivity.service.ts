@@ -409,6 +409,10 @@ export class VisitorActivityService {
    */
   static async seedInitialVisitorDataIfEmpty(): Promise<void> {
     try {
+      if (process.env.NODE_ENV === 'production') {
+        return; // Never seed fake visitor activity in production
+      }
+
       const snap = await db.collection(this.activitiesCollection).limit(1).get();
       if (!snap.empty) {
         return; // Already populated

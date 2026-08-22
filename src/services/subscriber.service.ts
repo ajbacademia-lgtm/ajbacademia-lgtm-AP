@@ -19,6 +19,10 @@ export class SubscriberService {
     if (this.hasCheckedSeed) return;
     this.hasCheckedSeed = true;
 
+    if (process.env.NODE_ENV === 'production') {
+      return; // Never seed demo newsletter subscribers in production
+    }
+
     try {
       const snap = await db.collection(this.subscribersCollection).limit(1).get();
       if (!snap.empty) return;

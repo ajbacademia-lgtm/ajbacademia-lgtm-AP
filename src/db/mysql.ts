@@ -436,12 +436,35 @@ export async function initMySQLSchema(): Promise<void> {
  */
 async function seedMySQLIfEmpty(conn: PoolConnection) {
   try {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Production Admin Bootstrapping (only if explicitly configured via environment variables)
+    if (isProduction) {
+      const bootstrapEmail = process.env.ADMIN_BOOTSTRAP_EMAIL;
+      const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+
+      if (bootstrapEmail && bootstrapPassword) {
+        const [userRows]: any = await conn.query('SELECT COUNT(*) AS cnt FROM users WHERE role = "admin"');
+        if (!userRows || userRows[0]?.cnt === 0) {
+          const adminPasswordHash = await bcrypt.hash(bootstrapPassword, 12);
+          await conn.query(`
+            INSERT INTO users (id, email, name, role, department, institution, password_hash, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash)
+          `, ['u_admin_prod', bootstrapEmail.toLowerCase().trim(), 'System Administrator', 'admin', 'Editorial Office', 'Academic Publishing Group', adminPasswordHash, new Date().toISOString(), new Date().toISOString()]);
+          console.log(`[Production Bootstrap] Successfully bootstrapped primary administrator for ${bootstrapEmail}`);
+        }
+      }
+      return;
+    }
+
+    // Development / Preview Baseline Dataset Seeding
     const [rows]: any = await conn.query('SELECT COUNT(*) AS cnt FROM journals');
     if (rows[0]?.cnt > 0) {
       return; // Database already contains data
     }
 
-    console.log('[MySQL Seeder] Seeding initial baseline datasets into MySQL...');
+    console.log('[MySQL Seeder] Seeding initial baseline datasets into development MySQL...');
 
     // Seed Journals
     const seedJournals = [
@@ -926,14 +949,17 @@ export async function saveCollectionDoc(collectionName: string, id: string, docD
   const fullData = { ...docData, id };
   const currentPool = getMySQLPool();
 
-  // Always update memory store as fallback
-  getMemoryCollection(collectionName).set(id, fullData);
-
   if (!currentPool) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(`[Database Service Unavailable 503] Production MySQL connection pool is offline. Cannot save record.`);
     }
+    getMemoryCollection(collectionName).set(id, fullData);
     return;
+  }
+
+  // Update memory cache only in development
+  if (process.env.NODE_ENV !== 'production') {
+    getMemoryCollection(collectionName).set(id, fullData);
   }
 
   let conn: PoolConnection | null = null;
@@ -1102,6 +1128,9 @@ export async function saveCollectionDoc(collectionName: string, id: string, docD
       `, [collectionName, id, jsonData, fullData.createdAt || new Date().toISOString(), fullData.updatedAt || new Date().toISOString()]);
     }
   } catch (err: any) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[Database Save Failed 500] Production MySQL save for '${collectionName}/${id}' failed: ${err.message}`);
+    }
     console.warn(`[MySQL SAVE ${collectionName}/${id} Notice]:`, err?.message || err);
   } finally {
     if (conn) conn.release();
@@ -1109,10 +1138,17 @@ export async function saveCollectionDoc(collectionName: string, id: string, docD
 }
 
 export async function deleteCollectionDoc(collectionName: string, id: string): Promise<void> {
-  getMemoryCollection(collectionName).delete(id);
+  if (process.env.NODE_ENV !== 'production') {
+    getMemoryCollection(collectionName).delete(id);
+  }
 
   const currentPool = getMySQLPool();
-  if (!currentPool) return;
+  if (!currentPool) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[Database Service Unavailable 503] Production MySQL connection pool is offline. Cannot delete record.`);
+    }
+    return;
+  }
 
   let conn: PoolConnection | null = null;
   try {
@@ -1145,6 +1181,9 @@ export async function deleteCollectionDoc(collectionName: string, id: string): P
       await conn.query('DELETE FROM generic_entities WHERE collection_name = ? AND id = ?', [collectionName, id]);
     }
   } catch (err: any) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`[Database Delete Failed 500] Production MySQL delete for '${collectionName}/${id}' failed: ${err.message}`);
+    }
     console.warn(`[MySQL DELETE ${collectionName}/${id} Notice]:`, err?.message || err);
   } finally {
     if (conn) conn.release();

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MockService } from '../services/mockDb';
+import { authService } from '../services/authService';
 import { Lock, ShieldCheck, ArrowRight, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { RequestAdminAccessModal } from '../components/RequestAdminAccessModal';
 
@@ -21,18 +21,18 @@ export const AdminLogin: React.FC = () => {
     setLoading(true);
 
     try {
-      const user = await MockService.login(email, password);
-      // Ensure only admins can login here, or redirect based on role
-      if (user && user.role === 'admin') {
+      const user = await authService.login(email, password);
+      // Ensure only admins and editors can login here
+      if (user && (user.role === 'admin' || user.role === 'editor')) {
         login(user);
         navigate('/admindashboard');
       } else if (user) {
-        setError('This portal is restricted to administrators.');
+        setError('This portal is restricted to administrators and editorial staff.');
       } else {
         setError('Invalid admin credentials');
       }
-    } catch (err) {
-      setError('An error occurred during authentication');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid email or password');
     } finally {
       setLoading(false);
     }

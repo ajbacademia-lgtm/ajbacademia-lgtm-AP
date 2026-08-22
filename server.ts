@@ -44,13 +44,16 @@ app.use(requestLogger);
 // Health Check Endpoint (MySQL Verification, Production & Hostinger Monitoring)
 app.get('/api/health', async (_req, res) => {
   const mysqlStatus = await testMySQLConnection();
-  return res.json({
-    status: 'ok',
+  const isProduction = process.env.NODE_ENV === 'production';
+  const statusCode = (isProduction && !mysqlStatus.connected) ? 503 : 200;
+
+  return res.status(statusCode).json({
+    status: mysqlStatus.connected ? 'ok' : (isProduction ? 'error' : 'degraded'),
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     port: Number(process.env.PORT) || PORT,
-    database: mysqlStatus.connected ? 'mysql_connected' : 'memory_fallback',
+    database: mysqlStatus.connected ? 'mysql_connected' : (isProduction ? 'unavailable' : 'memory_fallback'),
     mysql: {
       connected: mysqlStatus.connected,
       host: mysqlStatus.host,
@@ -1459,9 +1462,13 @@ app.get('/api/dashboard/stats', async (_req, res) => {
   }
 });
 
-// Seed Initial Data into database only if database is completely empty
+// Seed Initial Data into database only if database is completely empty and in development mode
 async function seedDatabaseIfEmpty() {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return; // Never seed demo data in production
+    }
+
     const journalsSnap = await db.collection('journals').limit(1).get();
     if (!journalsSnap.empty) {
       return; // Database already populated with live data; do not overwrite or reset
