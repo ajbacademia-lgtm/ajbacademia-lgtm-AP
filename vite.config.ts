@@ -23,6 +23,12 @@ export default defineConfig(({ mode }) => {
       build: {
         chunkSizeWarningLimit: 1500,
         rollupOptions: {
+          // Explicitly pin the single frontend entry point. Without this,
+          // some environments have been observed pulling stray root-level
+          // Node.js entry shims (app.js / server.js) into the frontend
+          // build graph, which fails because they reference files
+          // (dist/server.cjs) that don't exist until the build finishes.
+          input: path.resolve(__dirname, 'index.html'),
           output: {
             manualChunks: {
               'vendor-react': ['react', 'react-dom', 'react-router-dom'],
