@@ -4,11 +4,11 @@ import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
-// MySQL Configuration from Environment Variables
+// MySQL Configuration from Environment Variables (supporting standard aliases)
 export const DB_HOST = process.env.DB_HOST || '';
 export const DB_PORT = Number(process.env.DB_PORT) || 3306;
-export const DB_NAME = process.env.DB_NAME || 'academic_journal_db';
-export const DB_USER = process.env.DB_USER || '';
+export const DB_NAME = process.env.DB_DATABASE || process.env.DB_NAME || 'academic_journal_db';
+export const DB_USER = process.env.DB_USERNAME || process.env.DB_USER || '';
 export const DB_PASSWORD = process.env.DB_PASSWORD || '';
 
 let pool: Pool | null = null;

@@ -1874,14 +1874,26 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Serve frontend assets directly from the same directory as server.cjs (__dirname)
-    const staticDir = typeof __dirname !== 'undefined' ? __dirname : path.join(process.cwd(), 'dist');
-    app.use(express.static(staticDir));
+    // Serve frontend assets directly from candidate directories
+    const primaryStaticDir = typeof __dirname !== 'undefined' ? __dirname : path.join(process.cwd(), 'dist');
+    app.use(express.static(primaryStaticDir));
+    app.use(express.static(path.join(process.cwd(), 'dist')));
     
     // SPA fallback for client-side routing (Universal path-to-regexp safe)
     app.use((req, res, next) => {
       if (req.method === 'GET' && !req.path.startsWith('/api')) {
-        return res.sendFile(path.join(staticDir, 'index.html'));
+        const candidateIndexPaths = [
+          typeof __dirname !== 'undefined' ? path.join(__dirname, 'index.html') : null,
+          path.join(process.cwd(), 'dist', 'index.html'),
+          path.join(process.cwd(), 'index.html')
+        ].filter(Boolean) as string[];
+
+        for (const candidate of candidateIndexPaths) {
+          if (fs.existsSync(candidate)) {
+            return res.sendFile(candidate);
+          }
+        }
+        return res.status(200).send('<!DOCTYPE html><html><head><title>Academic Journal Platform</title></head><body><div id="root">Loading Academic Journal Platform...</div></body></html>');
       }
       next();
     });
@@ -1901,14 +1913,25 @@ async function startServer() {
 
   // Only bind port if not running in a pure serverless function invocation
   if (!isServerless) {
-    const PORT = process.env.PORT || 3000;
+    const rawPort = process.env.PORT || 3000;
+    const isNamedPipeOrSocket = typeof rawPort === 'string' && isNaN(Number(rawPort));
 
-    const server = app.listen(Number(PORT), '0.0.0.0', () => {
-      console.log('--- Starting production server ---');
-      console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
-      console.log(`Port: ${PORT}`);
-      console.log(`Server initialization complete & listening on port ${PORT}`);
-    });
+    let server: any;
+    if (isNamedPipeOrSocket) {
+      server = app.listen(rawPort, () => {
+        console.log('--- Starting production server ---');
+        console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
+        console.log(`Bound to Passenger socket / pipe: ${rawPort}`);
+      });
+    } else {
+      const portNum = Number(rawPort) || 3000;
+      server = app.listen(portNum, '0.0.0.0', () => {
+        console.log('--- Starting production server ---');
+        console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
+        console.log(`Port: ${portNum}`);
+        console.log(`Server initialization complete & listening on port ${portNum}`);
+      });
+    }
 
     // Graceful Shutdown Handling
     const gracefulShutdown = (signal: string) => {

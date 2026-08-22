@@ -38,7 +38,7 @@ export class HostingerLocalStorageAdapter implements IStorageAdapter {
   private baseUploadDir: string;
 
   constructor(customBaseDir?: string) {
-    this.baseUploadDir = customBaseDir || path.resolve(process.cwd(), 'uploads');
+    this.baseUploadDir = customBaseDir || process.env.STORAGE_BASE_DIR || path.resolve(process.cwd(), 'uploads');
     this.ensureDirectoryExists(this.baseUploadDir);
     this.ensureDirectoryExists(path.join(this.baseUploadDir, 'public'));
     this.ensureDirectoryExists(path.join(this.baseUploadDir, 'private'));
