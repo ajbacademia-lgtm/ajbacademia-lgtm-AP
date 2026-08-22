@@ -22,10 +22,16 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const user = await authService.login(email, password);
+      const cleanEmail = email.trim();
+      const cleanPassword = password.trim();
+      const user = await authService.login(cleanEmail, cleanPassword);
       if (user) {
         login(user);
-        navigate('/dashboard');
+        if (user.role === 'admin' || user.role === 'editor') {
+          navigate('/admindashboard');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setError('Invalid email or password');
       }
@@ -43,7 +49,11 @@ export const Login: React.FC = () => {
       const user = await authService.loginWithGoogle();
       if (user) {
         login(user);
-        navigate('/dashboard');
+        if (user.role === 'admin' || user.role === 'editor') {
+          navigate('/admindashboard');
+        } else {
+          navigate('/dashboard');
+        }
       }
     } catch (err: any) {
       console.error('Google Sign-In Error:', err);

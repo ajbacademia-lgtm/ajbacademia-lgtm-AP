@@ -85,6 +85,8 @@ const AppContent: React.FC = () => {
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
           <Route path="admindashboard/login" element={<AdminLogin />} />
+          <Route path="admin/login" element={<AdminLogin />} />
+          <Route path="adminlogin" element={<AdminLogin />} />
           <Route path="register" element={<Register />} />
           <Route path="registration-success" element={<RegistrationSuccess />} />
           <Route path="dashboard" element={<Dashboard />} />

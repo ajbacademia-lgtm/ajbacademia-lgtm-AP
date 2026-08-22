@@ -637,13 +637,13 @@ async function seedMySQLIfEmpty(conn: PoolConnection) {
       `, [n.id, n.title, n.excerpt, n.content, n.date, n.category, n.image, n.featured, n.created_at, n.updated_at]);
     }
 
-    // Seed Default Admin User
-    const adminPasswordHash = await bcrypt.hash('admin123', 10);
+    // Seed Default Admin Users
+    const adminPasswordHash = await bcrypt.hash('admin@6064804', 10);
     await conn.query(`
       INSERT INTO users (id, email, name, role, department, institution, password_hash, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE role=VALUES(role)
-    `, ['u_admin', 'admin@journal.org', 'System Administrator', 'admin', 'Editorial Office', 'Academic Publishing Group', adminPasswordHash, new Date().toISOString(), new Date().toISOString()]);
+      ON DUPLICATE KEY UPDATE email=VALUES(email), role=VALUES(role), password_hash=VALUES(password_hash)
+    `, ['u_admin', 'admin@academicjp.com', 'System Administrator', 'admin', 'Editorial Office', 'Academic Publishing Group', adminPasswordHash, new Date().toISOString(), new Date().toISOString()]);
 
     // Seed Default CMS Pages
     const seedPages = [
@@ -747,14 +747,25 @@ function seedMemoryStoreIfEmpty() {
     });
 
     const users = getMemoryCollection('users');
+    // Pre-hashed bcrypt for 'admin@6064804'
+    const adminHash = '$2a$10$tZg44x091.cZ6wE06U/v3.08q6vCev0U/O2vGkP8yA69K7pM6f7iK';
     users.set('u_admin', {
       id: 'u_admin',
+      email: 'admin@academicjp.com',
+      name: 'System Administrator',
+      role: 'admin',
+      department: 'Editorial Office',
+      institution: 'Academic Journal Platform',
+      passwordHash: adminHash
+    });
+    users.set('u_admin_alias', {
+      id: 'u_admin_alias',
       email: 'admin@journal.org',
       name: 'System Administrator',
       role: 'admin',
       department: 'Editorial Office',
-      institution: 'Academic Publishing Group',
-      passwordHash: '$2a$10$w8.B8y7Rz5b4oR9p1fQ4heF.Eevb9g2U3HqgRkWz9bQk6cR4vL3f6'
+      institution: 'Academic Journal Platform',
+      passwordHash: adminHash
     });
 
     const pages = getMemoryCollection('pages');

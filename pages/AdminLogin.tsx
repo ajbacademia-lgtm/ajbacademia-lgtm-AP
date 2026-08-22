@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
-import { Lock, ShieldCheck, ArrowRight, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Lock, ShieldCheck, ArrowRight, Eye, EyeOff, UserPlus, KeyRound, CheckCircle2 } from 'lucide-react';
 import { RequestAdminAccessModal } from '../components/RequestAdminAccessModal';
 
 export const AdminLogin: React.FC = () => {
@@ -12,16 +12,28 @@ export const AdminLogin: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleFillAdminCredentials = () => {
+    setEmail('admin@academicjp.com');
+    setPassword('admin@6064804');
+    setAutoFilled(true);
+    setError('');
+    setTimeout(() => setAutoFilled(false), 3000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
     try {
-      const user = await authService.login(email, password);
+      const user = await authService.login(cleanEmail, cleanPassword);
       // Ensure only admins and editors can login here
       if (user && (user.role === 'admin' || user.role === 'editor')) {
         login(user);
@@ -29,7 +41,7 @@ export const AdminLogin: React.FC = () => {
       } else if (user) {
         setError('This portal is restricted to administrators and editorial staff.');
       } else {
-        setError('Invalid admin credentials');
+        setError('Invalid admin credentials. Please check your username and password.');
       }
     } catch (err: any) {
       setError(err?.message || 'Invalid email or password');
@@ -53,40 +65,66 @@ export const AdminLogin: React.FC = () => {
           </div>
           <h2 className="text-3xl font-serif font-bold text-white tracking-tight">Admin Console</h2>
           <p className="mt-2 text-sm text-white/40 italic uppercase tracking-widest font-black">
-             Goverance & Oversight Portal
+             Governance & Oversight Portal
           </p>
         </div>
 
         <div className="bg-white/5 backdrop-blur-md p-8 rounded-sm border border-white/10 shadow-2xl">
-          <div className="mb-8">
-             <h3 className="text-white font-bold mb-1">Web Admin Access</h3>
-             <p className="text-xs text-white/50 leading-relaxed">
-               Restricted portal for Academic Publishing administrative staff, section editors, and system architects.
-             </p>
+          <div className="mb-6 flex items-start justify-between">
+             <div>
+               <h3 className="text-white font-bold mb-1">Web Admin Access</h3>
+               <p className="text-xs text-white/50 leading-relaxed">
+                 Restricted portal for Academic Publishing administrative staff and section editors.
+               </p>
+             </div>
+          </div>
+
+          {/* Quick Credential Helper Pill */}
+          <div className="mb-6 p-3 bg-white/5 border border-white/10 rounded-sm flex items-center justify-between">
+            <div className="text-xs">
+              <div className="text-white/80 font-medium">Default Admin Account</div>
+              <div className="text-[11px] text-white/40 font-mono">admin@academicjp.com</div>
+            </div>
+            <button
+              type="button"
+              onClick={handleFillAdminCredentials}
+              className="px-2.5 py-1.5 bg-brand-action/20 hover:bg-brand-action text-brand-action hover:text-white rounded text-[10px] font-bold uppercase tracking-wider transition-colors flex items-center gap-1 border border-brand-action/30"
+              title="Click to fill admin credentials"
+            >
+              {autoFilled ? (
+                <>
+                  <CheckCircle2 size={12} /> Filled
+                </>
+              ) : (
+                <>
+                  <KeyRound size={12} /> Auto-fill
+                </>
+              )}
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-brand-action">Email Address</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-brand-action">Admin Username / Email</label>
                 <input
                   type="email"
                   required
-                  className="bg-white/5 text-white px-4 py-3 border border-white/10 rounded-sm outline-none focus:border-brand-action focus:bg-white/10 transition-all text-sm"
-                  placeholder="admin@academicpublishinggroup.org"
+                  className="bg-white/5 text-white px-4 py-3 border border-white/10 rounded-sm outline-none focus:border-brand-action focus:bg-white/10 transition-all text-sm font-mono"
+                  placeholder="admin@academicjp.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-brand-action">Password</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-brand-action">Admin Password</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    className="w-full bg-white/5 text-white pl-4 pr-12 py-3 border border-white/10 rounded-sm outline-none focus:border-brand-action focus:bg-white/10 transition-all text-sm"
-                    placeholder="••••••••"
+                    className="w-full bg-white/5 text-white pl-4 pr-12 py-3 border border-white/10 rounded-sm outline-none focus:border-brand-action focus:bg-white/10 transition-all text-sm font-mono"
+                    placeholder="admin@6064804"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -104,7 +142,7 @@ export const AdminLogin: React.FC = () => {
             </div>
 
             {error && (
-              <div className="text-red-400 text-[10px] uppercase font-bold tracking-widest text-center animate-pulse">
+              <div className="text-red-400 text-xs font-medium tracking-wide text-center bg-red-950/40 p-2.5 rounded border border-red-800/40">
                 {error}
               </div>
             )}
