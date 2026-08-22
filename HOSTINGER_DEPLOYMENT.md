@@ -94,7 +94,7 @@ Configure these variables under **Environment Variables** in hPanel (or in a sec
      "timestamp": "2026-08-21T12:00:00.000Z",
      "environment": "production",
      "port": 3000,
-     "database": "connected"
+     "database": "mysql_connected"
    }
    ```
 
@@ -102,7 +102,27 @@ Configure these variables under **Environment Variables** in hPanel (or in a sec
    Open `https://yourdomain.com/` and verify Journals, Articles, Editorial Board, and Author Hub work smoothly.
 
 3. **Authentication**:
-   Register a new author account or log in as administrator (`admin@journal.org`).
+   Register a new author account or log in with your configured credentials.
 
 4. **Manuscript Uploads**:
    Submit a manuscript PDF and verify it routes through `/uploads/private` with authenticated proxy access.
+
+---
+
+## 6. Troubleshooting "503 Service Unavailable (The server is temporarily busy)"
+
+If LiteSpeed / CloudLinux Passenger shows `503 Service Unavailable`:
+
+1. **Check Application Startup File**:
+   - In hPanel -> Node.js, set **Application startup file** to `app.js`, `server.js`, or `dist/server.cjs`.
+   - All three files are pre-configured to launch the application.
+
+2. **Run Build Before Starting**:
+   - Ensure you ran `npm run build` so `dist/server.cjs` and `dist/index.html` exist.
+
+3. **Verify Database Credentials**:
+   - In hPanel -> Node.js -> Environment Variables, ensure `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` match your MySQL database in hPanel.
+   - On Hostinger, `DB_HOST` is typically `127.0.0.1` or `localhost`.
+
+4. **Restart the Node.js App**:
+   - In hPanel -> Node.js, click **Restart Application**.

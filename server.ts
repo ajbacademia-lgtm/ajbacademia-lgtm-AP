@@ -1783,18 +1783,33 @@ async function startServer() {
     });
   }
 
-  const port = Number(process.env.PORT) || 3000;
+  // Process Crash Guards (Prevents Node.js from exiting ungracefully on external timeouts/errors)
+  process.on('uncaughtException', (err) => {
+    console.error('[Process Error] Uncaught Exception:', err?.message || err);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Process Error] Unhandled Rejection at:', promise, 'reason:', reason);
+  });
+
+  const rawPort = process.env.PORT;
+  const isNamedPipeOrSocket = rawPort && isNaN(Number(rawPort));
+  const port = rawPort ? (isNamedPipeOrSocket ? rawPort : Number(rawPort)) : 3000;
   const host = '0.0.0.0';
 
-  const server = app.listen(port, host, () => {
+  const onServerListening = () => {
     console.log(`====================================================`);
     console.log(` Academic Journal Platform (AJP) Server Started`);
     console.log(` Environment    : ${process.env.NODE_ENV || 'development'}`);
-    console.log(` Listening on   : http://${host}:${port}`);
+    console.log(` Listening on   : ${isNamedPipeOrSocket ? port : `http://${host}:${port}`}`);
     console.log(` Storage Adapter: Hostinger Local Storage (/uploads)`);
     console.log(` Database Engine: MySQL / Hostinger Adapter`);
     console.log(`====================================================`);
-  });
+  };
+
+  const server = isNamedPipeOrSocket
+    ? app.listen(port, onServerListening)
+    : app.listen(port as number, host, onServerListening);
 
   // Graceful Shutdown Handling
   const gracefulShutdown = (signal: string) => {
