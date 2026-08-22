@@ -1879,9 +1879,12 @@ async function startServer() {
     const staticDir = typeof __dirname !== 'undefined' ? __dirname : path.join(process.cwd(), 'dist');
     app.use(express.static(staticDir));
     
-    // SPA fallback for client-side routing
-    app.get('*all', (_req, res) => {
-      res.sendFile(path.join(staticDir, 'index.html'));
+    // SPA fallback for client-side routing (Universal path-to-regexp safe)
+    app.use((req, res, next) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api')) {
+        return res.sendFile(path.join(staticDir, 'index.html'));
+      }
+      next();
     });
   }
 
