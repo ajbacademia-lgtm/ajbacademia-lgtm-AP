@@ -23,8 +23,17 @@ import apiRouter from './src/routes/index';
 
 dotenv.config();
 
+// Global Exception & Rejection Handlers (prevents silent startup crashes)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception thrown:', error);
+});
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -1776,40 +1785,24 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    // Serve frontend assets directly from the same directory as server.cjs (__dirname)
+    const staticDir = typeof __dirname !== 'undefined' ? __dirname : path.join(process.cwd(), 'dist');
+    app.use(express.static(staticDir));
+    
+    // SPA fallback for client-side routing
     app.get('*all', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      res.sendFile(path.join(staticDir, 'index.html'));
     });
   }
 
-  // Process Crash Guards (Prevents Node.js from exiting ungracefully on external timeouts/errors)
-  process.on('uncaughtException', (err) => {
-    console.error('[Process Error] Uncaught Exception:', err?.message || err);
+  const PORT = process.env.PORT || 3000;
+
+  const server = app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log('--- Starting production server ---');
+    console.log(`Environment: ${process.env.NODE_ENV || 'production'}`);
+    console.log(`Port: ${PORT}`);
+    console.log(`Server initialization complete & listening on port ${PORT}`);
   });
-
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('[Process Error] Unhandled Rejection at:', promise, 'reason:', reason);
-  });
-
-  const rawPort = process.env.PORT;
-  const isNamedPipeOrSocket = rawPort && isNaN(Number(rawPort));
-  const port = rawPort ? (isNamedPipeOrSocket ? rawPort : Number(rawPort)) : 3000;
-  const host = '0.0.0.0';
-
-  const onServerListening = () => {
-    console.log(`====================================================`);
-    console.log(` Academic Journal Platform (AJP) Server Started`);
-    console.log(` Environment    : ${process.env.NODE_ENV || 'development'}`);
-    console.log(` Listening on   : ${isNamedPipeOrSocket ? port : `http://${host}:${port}`}`);
-    console.log(` Storage Adapter: Hostinger Local Storage (/uploads)`);
-    console.log(` Database Engine: MySQL / Hostinger Adapter`);
-    console.log(`====================================================`);
-  };
-
-  const server = isNamedPipeOrSocket
-    ? app.listen(port, onServerListening)
-    : app.listen(port as number, host, onServerListening);
 
   // Graceful Shutdown Handling
   const gracefulShutdown = (signal: string) => {
