@@ -1,6 +1,7 @@
 /**
  * Universal safe API fetch wrapper
  * Attaches Authorization header or credentials automatically
+ * Completely immune to "Unexpected token '<', '<!DOCTYPE '... is not valid JSON" errors
  */
 
 interface SafeFetchOptions extends RequestInit {
@@ -48,15 +49,37 @@ export async function safeFetchJson<T = any>(
       return fallback;
     }
 
-    const data = await response.json();
-    return data;
+    const contentType = response.headers.get('content-type') || '';
+    const text = await response.text();
+
+    if (!text || !text.trim()) {
+      return fallback;
+    }
+
+    // Guard against HTML error pages or SPA fallback index.html
+    if (text.trim().startsWith('<') || (!contentType.includes('json') && text.includes('<!DOCTYPE'))) {
+      if (!silent) {
+        console.warn(`[API Response is HTML]: Expected JSON but received HTML for ${url}`);
+      }
+      return fallback;
+    }
+
+    try {
+      const data = JSON.parse(text);
+      return data as T;
+    } catch (parseError) {
+      if (!silent) {
+        console.warn(`[API JSON Parse Error]: Invalid JSON received for ${url}`, parseError);
+      }
+      return fallback;
+    }
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (!silent) {
       if (error.name === 'AbortError') {
         console.warn(`[API Timeout]: Request to ${url} timed out after ${timeout}ms`);
       } else {
-        console.warn(`[API Notice]: Request to ${url} failed`, error);
+        console.warn(`[API Notice]: Request to ${url} failed:`, error?.message || error);
       }
     }
     return fallback;

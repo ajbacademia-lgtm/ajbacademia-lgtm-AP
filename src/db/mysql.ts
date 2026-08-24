@@ -747,8 +747,12 @@ function seedMemoryStoreIfEmpty() {
     });
 
     const users = getMemoryCollection('users');
-    // Pre-hashed bcrypt for 'admin@6064804'
-    const adminHash = '$2a$10$tZg44x091.cZ6wE06U/v3.08q6vCev0U/O2vGkP8yA69K7pM6f7iK';
+    // Pre-hashed bcrypt hashes
+    // 'admin@6064804': $2b$10$mXiA5JArIXziYCH18ztepeB/E0ESmFHlIblefYwfcr7mmQLKWKDrq
+    // 'author123', 'editor123', 'reviewer123', 'admin123': $2b$10$upbcSa0gjV6l0BVhj5Tldu9oLOe4YPOT7yfkqaoBGt0a2p0NCUoJm
+    const adminHash = '$2b$10$mXiA5JArIXziYCH18ztepeB/E0ESmFHlIblefYwfcr7mmQLKWKDrq';
+    const standardHash = '$2b$10$upbcSa0gjV6l0BVhj5Tldu9oLOe4YPOT7yfkqaoBGt0a2p0NCUoJm';
+
     users.set('u_admin', {
       id: 'u_admin',
       email: 'admin@academicjp.com',
@@ -756,7 +760,9 @@ function seedMemoryStoreIfEmpty() {
       role: 'admin',
       department: 'Editorial Office',
       institution: 'Academic Journal Platform',
-      passwordHash: adminHash
+      passwordHash: adminHash,
+      isVerified: true,
+      isActive: true
     });
     users.set('u_admin_alias', {
       id: 'u_admin_alias',
@@ -765,7 +771,42 @@ function seedMemoryStoreIfEmpty() {
       role: 'admin',
       department: 'Editorial Office',
       institution: 'Academic Journal Platform',
-      passwordHash: adminHash
+      passwordHash: adminHash,
+      isVerified: true,
+      isActive: true
+    });
+    users.set('u_author', {
+      id: 'u_author',
+      email: 'author@academicjp.com',
+      name: 'Dr. Elena Rostova',
+      role: 'author',
+      department: 'Agricultural Water Management',
+      institution: 'Institute of Agricultural Water Management',
+      passwordHash: standardHash,
+      isVerified: true,
+      isActive: true
+    });
+    users.set('u_editor', {
+      id: 'u_editor',
+      email: 'editor@academicjp.com',
+      name: 'Prof. Marcus Vance',
+      role: 'editor',
+      department: 'Editorial Board',
+      institution: 'Cambridge University Press',
+      passwordHash: standardHash,
+      isVerified: true,
+      isActive: true
+    });
+    users.set('u_reviewer', {
+      id: 'u_reviewer',
+      email: 'reviewer@academicjp.com',
+      name: 'Dr. Ahmed Al-Mansoor',
+      role: 'reviewer',
+      department: 'Desert Research',
+      institution: 'Desert Research Centre',
+      passwordHash: standardHash,
+      isVerified: true,
+      isActive: true
     });
 
     const pages = getMemoryCollection('pages');

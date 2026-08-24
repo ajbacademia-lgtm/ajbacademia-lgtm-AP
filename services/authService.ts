@@ -1,25 +1,58 @@
 import { User, AuthCredentials, SignUpData } from '../types';
 
+/**
+ * Safely parses response text to avoid "Unexpected token '<' ... is not valid JSON" errors
+ * when endpoints return HTML fallback or error pages.
+ */
+async function parseSafeResponse(response: Response, defaultErrorMsg: string): Promise<any> {
+  const text = await response.text();
+  let data: any = null;
+  if (text && text.trim() && !text.trim().startsWith('<')) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Not valid JSON string
+    }
+  }
+
+  if (!response.ok || !data?.success) {
+    const errorMsg = data?.error || data?.message || (response.status === 401 ? 'Invalid email or password.' : defaultErrorMsg);
+    throw new Error(errorMsg);
+  }
+
+  return data;
+}
+
 class AuthService {
   private currentUser: User | null = null;
   private listeners: ((user: User | null) => void)[] = [];
 
   constructor() {
-    // Attempt session recovery from memory or /api/auth/me on load
+    // Attempt session recovery on load
     this.restoreSession();
   }
 
   private async restoreSession(): Promise<void> {
     try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('ajp_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch('/api/auth/me', {
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include'
       });
+
       if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          this.currentUser = data.user;
-          this.notifyListeners();
+        const text = await response.text();
+        if (text && text.trim() && !text.trim().startsWith('<')) {
+          const data = JSON.parse(text);
+          if (data.success && data.user) {
+            this.currentUser = data.user;
+            this.notifyListeners();
+          }
         }
       }
     } catch {
@@ -84,20 +117,23 @@ class AuthService {
           bio: dataOrEmail.bio || ''
         };
 
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('ajp_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch('/api/auth/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       credentials: 'include',
       body: JSON.stringify(payload)
     });
 
-    const resData = await response.json();
-    if (!response.ok || !resData.success) {
-      throw new Error(resData.error || 'Failed to create user account.');
-    }
+    const resData = await parseSafeResponse(response, 'Failed to create user account.');
 
     this.currentUser = resData.user;
-    if (resData.token) {
+    if (resData.token && typeof window !== 'undefined') {
       sessionStorage.setItem('ajp_token', resData.token);
     }
     this.notifyListeners();
@@ -125,20 +161,23 @@ class AuthService {
       ? { email: credentialsOrEmail, password: password || '' }
       : credentialsOrEmail;
 
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('ajp_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       credentials: 'include',
       body: JSON.stringify(payload)
     });
 
-    const resData = await response.json();
-    if (!response.ok || !resData.success) {
-      throw new Error(resData.error || 'Invalid email or password.');
-    }
+    const resData = await parseSafeResponse(response, 'Invalid email or password.');
 
     this.currentUser = resData.user;
-    if (resData.token) {
+    if (resData.token && typeof window !== 'undefined') {
       sessionStorage.setItem('ajp_token', resData.token);
     }
     this.notifyListeners();
@@ -157,9 +196,14 @@ class AuthService {
    */
   async logout(): Promise<void> {
     try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('ajp_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       await fetch('/api/auth/logout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include'
       });
     } catch {
@@ -167,7 +211,9 @@ class AuthService {
     }
 
     this.currentUser = null;
-    sessionStorage.removeItem('ajp_token');
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('ajp_token');
+    }
     this.notifyListeners();
   }
 
@@ -180,10 +226,7 @@ class AuthService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    const resData = await response.json();
-    if (!response.ok || !resData.success) {
-      throw new Error(resData.error || 'Failed to request password reset.');
-    }
+    await parseSafeResponse(response, 'Failed to request password reset.');
   }
 
   /**
