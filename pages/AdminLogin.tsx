@@ -17,8 +17,8 @@ export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
 
   const handleFillAdminCredentials = () => {
-    setEmail('admin@academicjp.com');
-    setPassword('admin@6064804');
+    setEmail('admin@academicpublishinggroup.org');
+    setPassword('MA4598@HFbs40#@#');
     setAutoFilled(true);
     setError('');
     setTimeout(() => setAutoFilled(false), 3000);
@@ -83,7 +83,7 @@ export const AdminLogin: React.FC = () => {
           <div className="mb-6 p-3 bg-white/5 border border-white/10 rounded-sm flex items-center justify-between">
             <div className="text-xs">
               <div className="text-white/80 font-medium">Default Admin Account</div>
-              <div className="text-[11px] text-white/40 font-mono">admin@academicjp.com</div>
+              <div className="text-[11px] text-white/40 font-mono">admin@academicpublishinggroup.org</div>
             </div>
             <button
               type="button"
@@ -111,7 +111,7 @@ export const AdminLogin: React.FC = () => {
                   type="email"
                   required
                   className="bg-white/5 text-white px-4 py-3 border border-white/10 rounded-sm outline-none focus:border-brand-action focus:bg-white/10 transition-all text-sm font-mono"
-                  placeholder="admin@academicjp.com"
+                  placeholder="admin@academicpublishinggroup.org"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -124,7 +124,7 @@ export const AdminLogin: React.FC = () => {
                     type={showPassword ? 'text' : 'password'}
                     required
                     className="w-full bg-white/5 text-white pl-4 pr-12 py-3 border border-white/10 rounded-sm outline-none focus:border-brand-action focus:bg-white/10 transition-all text-sm font-mono"
-                    placeholder="admin@6064804"
+                    placeholder="••••••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />

@@ -1,0 +1,34 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profiles",
+      "description": "Registered user accounts and profiles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "User identifier" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "name": { "type": "string", "description": "User display name" },
+        "role": { "type": "string", "enum": ["admin", "editor", "reviewer", "author", "reader"], "description": "System role" },
+        "institution": { "type": "string", "description": "Academic institution" },
+        "department": { "type": "string", "description": "Academic department" },
+        "country": { "type": "string", "description": "Country of residence" },
+        "orcid": { "type": "string", "description": "ORCID identifier" },
+        "bio": { "type": "string", "description": "Biographical summary" },
+        "isVerified": { "type": "boolean", "description": "Verification status" },
+        "isActive": { "type": "boolean", "description": "Account status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "entity": "users",
+      "rules": {
+        "read": "request.auth != null",
+        "write": "request.auth != null && (request.auth.uid == resource.id || request.auth.uid == request.resource.id)"
+      }
+    }
+  }
+}

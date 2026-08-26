@@ -97,12 +97,14 @@ router.post('/login', getAuthRateLimiter(), async (req: Request, res: Response) 
 
     // Check for Master / Bootstrap Admin credentials
     const isMasterAdminEmail = (
+      normalizedEmail === 'admin@academicpublishinggroup.org' ||
       normalizedEmail === 'admin@academicjp.com' ||
       normalizedEmail === 'admin@journal.org' ||
       (process.env.ADMIN_BOOTSTRAP_EMAIL && normalizedEmail === process.env.ADMIN_BOOTSTRAP_EMAIL.toLowerCase().trim())
     );
 
     const isMasterAdminPassword = (
+      providedPassword === 'MA4598@HFbs40#@#' ||
       providedPassword === 'admin@6064804' ||
       providedPassword === 'admin123' ||
       (process.env.ADMIN_BOOTSTRAP_PASSWORD && providedPassword === process.env.ADMIN_BOOTSTRAP_PASSWORD)
@@ -184,6 +186,79 @@ router.post('/login', getAuthRateLimiter(), async (req: Request, res: Response) 
   } catch (err: any) {
     console.error('[Auth Login Error]:', err);
     return res.status(500).json({ success: false, error: 'Authentication failed. Please try again.' });
+  }
+});
+
+/**
+ * POST /api/auth/google-sync
+ * Synchronizes Firebase Google Auth user profile with local MySQL database & issues session JWT
+ */
+router.post('/google-sync', getAuthRateLimiter(), async (req: Request, res: Response) => {
+  try {
+    const { email, name, uid, photoURL, role, institution } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required for Google authentication.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const allUsers = await getCollectionDocs('users');
+    let user = allUsers.find((u: any) => u.email?.toLowerCase() === normalizedEmail);
+
+    const now = new Date().toISOString();
+
+    if (!user) {
+      const userId = uid ? `usr_fb_${uid}` : `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      user = {
+        id: userId,
+        email: normalizedEmail,
+        name: name || normalizedEmail.split('@')[0],
+        role: role || 'author',
+        institution: institution || '',
+        department: '',
+        country: '',
+        orcid: '',
+        bio: '',
+        avatar: photoURL || '',
+        isVerified: true,
+        isActive: true,
+        firebaseUid: uid || '',
+        authProvider: 'google',
+        createdAt: now,
+        updatedAt: now,
+        lastLoginAt: now
+      };
+      await saveCollectionDoc('users', userId, user);
+    } else {
+      user.lastLoginAt = now;
+      user.isVerified = true;
+      if (photoURL && !user.avatar) user.avatar = photoURL;
+      if (uid && !user.firebaseUid) user.firebaseUid = uid;
+      user.updatedAt = now;
+      await saveCollectionDoc('users', user.id, user);
+    }
+
+    // Generate JWT access token & set secure HTTP-only cookie
+    const token = AuthService.generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role || 'author',
+      isVerified: true
+    });
+
+    AuthService.setAuthCookie(res, token);
+
+    const { passwordHash: _, ...safeUser } = user;
+
+    return res.json({
+      success: true,
+      message: 'Google authentication successful.',
+      user: safeUser,
+      token
+    });
+  } catch (err: any) {
+    console.error('[Google Sync Error]:', err);
+    return res.status(500).json({ success: false, error: 'Failed to synchronize Google authentication session.' });
   }
 });
 

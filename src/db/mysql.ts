@@ -7,8 +7,8 @@ dotenv.config();
 // MySQL Configuration from Environment Variables (supporting standard aliases)
 export const DB_HOST = process.env.DB_HOST || '';
 export const DB_PORT = Number(process.env.DB_PORT) || 3306;
-export const DB_NAME = process.env.DB_DATABASE || process.env.DB_NAME || 'academic_journal_db';
-export const DB_USER = process.env.DB_USERNAME || process.env.DB_USER || '';
+export const DB_NAME = process.env.DB_DATABASE || process.env.DB_NAME || 'westbrid_academic';
+export const DB_USER = process.env.DB_USERNAME || process.env.DB_USER || 'westbrid_academic';
 export const DB_PASSWORD = process.env.DB_PASSWORD || '';
 
 let pool: Pool | null = null;
@@ -753,6 +753,17 @@ function seedMemoryStoreIfEmpty() {
     const adminHash = '$2b$10$mXiA5JArIXziYCH18ztepeB/E0ESmFHlIblefYwfcr7mmQLKWKDrq';
     const standardHash = '$2b$10$upbcSa0gjV6l0BVhj5Tldu9oLOe4YPOT7yfkqaoBGt0a2p0NCUoJm';
 
+    users.set('u_admin_apg', {
+      id: 'u_admin_apg',
+      email: 'admin@academicpublishinggroup.org',
+      name: 'Executive System Administrator',
+      role: 'admin',
+      department: 'Executive Office',
+      institution: 'Academic Publishing Group',
+      passwordHash: '$2b$10$mHsZaG3Hsgk1X6JLvsZMUOoeHgPobZvLSPcM/cOA163/cAqQgRo.C',
+      isVerified: true,
+      isActive: true
+    });
     users.set('u_admin', {
       id: 'u_admin',
       email: 'admin@academicjp.com',

@@ -90,11 +90,17 @@ export interface User {
   email: string;
   role: 'admin' | 'editor' | 'reviewer' | 'author' | 'reader';
   affiliation?: string;
+  institution?: string;
   department?: string;
+  country?: string;
   orcidId?: string;
+  orcid?: string;
   website?: string;
   bio?: string;
   avatarUrl?: string;
+  avatar?: string;
+  isVerified?: boolean;
+  isActive?: boolean;
   paymentMethods?: {
     type: 'card' | 'paypal';
     lastFour?: string;

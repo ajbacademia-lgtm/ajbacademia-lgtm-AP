@@ -1,4 +1,16 @@
 import { User, AuthCredentials, SignUpData } from '../types';
+import { auth, googleAuthProvider, firestore } from '../src/lib/firebase';
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * Safely parses response text to avoid "Unexpected token '<' ... is not valid JSON" errors
@@ -26,10 +38,47 @@ async function parseSafeResponse(response: Response, defaultErrorMsg: string): P
 class AuthService {
   private currentUser: User | null = null;
   private listeners: ((user: User | null) => void)[] = [];
+  private unsubscribeFirebase: (() => void) | null = null;
 
   constructor() {
     // Attempt session recovery on load
     this.restoreSession();
+    this.initFirebaseListener();
+  }
+
+  private initFirebaseListener(): void {
+    try {
+      this.unsubscribeFirebase = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+        if (fbUser && !this.currentUser) {
+          try {
+            // Attempt to fetch profile from Firestore or backend sync
+            const userDocRef = doc(firestore, 'users', fbUser.uid);
+            const userSnap = await getDoc(userDocRef);
+            if (userSnap.exists()) {
+              const data = userSnap.data() as any;
+              this.currentUser = {
+                id: data.id || fbUser.uid,
+                email: data.email || fbUser.email || '',
+                name: data.name || fbUser.displayName || 'User',
+                role: data.role || 'author',
+                institution: data.institution || '',
+                department: data.department || '',
+                country: data.country || '',
+                orcid: data.orcid || '',
+                bio: data.bio || '',
+                isVerified: true,
+                isActive: true
+              };
+              this.notifyListeners();
+            }
+          } catch {
+            // Silent fallback to backend auth
+          }
+        }
+      });
+    } catch {
+      // Firebase listener fallback
+    }
   }
 
   private async restoreSession(): Promise<void> {
@@ -84,7 +133,7 @@ class AuthService {
   }
 
   /**
-   * Register a new user account (Supports single object or discrete arguments)
+   * Register a new user account via MySQL backend and Firebase Auth
    */
   async signUp(
     dataOrEmail: SignUpData | string,
@@ -95,7 +144,7 @@ class AuthService {
   ): Promise<User> {
     const payload = typeof dataOrEmail === 'string'
       ? {
-          email: dataOrEmail,
+          email: dataOrEmail.toLowerCase().trim(),
           password: password || '',
           name: name || dataOrEmail.split('@')[0],
           role: role || 'author',
@@ -106,7 +155,7 @@ class AuthService {
           bio: ''
         }
       : {
-          email: dataOrEmail.email,
+          email: dataOrEmail.email.toLowerCase().trim(),
           password: dataOrEmail.password || '',
           name: `${dataOrEmail.firstName || ''} ${dataOrEmail.lastName || ''}`.trim() || dataOrEmail.name || 'User',
           role: dataOrEmail.role || 'author',
@@ -123,6 +172,7 @@ class AuthService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // 1. Primary Registration in MySQL backend
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers,
@@ -131,6 +181,36 @@ class AuthService {
     });
 
     const resData = await parseSafeResponse(response, 'Failed to create user account.');
+
+    // 2. Parallel Firebase Auth & Firestore registration (if email/password valid)
+    try {
+      if (payload.email && payload.password && payload.password.length >= 6) {
+        const userCred = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
+        if (userCred.user) {
+          if (payload.name) {
+            await updateProfile(userCred.user, { displayName: payload.name }).catch(() => {});
+          }
+          // Store user profile in Firestore
+          await setDoc(doc(firestore, 'users', userCred.user.uid), {
+            id: resData.user.id || userCred.user.uid,
+            email: payload.email,
+            name: payload.name,
+            role: payload.role,
+            institution: payload.institution,
+            department: payload.department,
+            country: payload.country,
+            orcid: payload.orcid,
+            bio: payload.bio,
+            isVerified: false,
+            isActive: true,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }).catch(() => {});
+        }
+      }
+    } catch {
+      // Backend MySQL registration succeeded; continue smoothly
+    }
 
     this.currentUser = resData.user;
     if (resData.token && typeof window !== 'undefined') {
@@ -158,8 +238,8 @@ class AuthService {
    */
   async login(credentialsOrEmail: AuthCredentials | string, password?: string): Promise<User> {
     const payload = typeof credentialsOrEmail === 'string'
-      ? { email: credentialsOrEmail, password: password || '' }
-      : credentialsOrEmail;
+      ? { email: credentialsOrEmail.toLowerCase().trim(), password: password || '' }
+      : { email: credentialsOrEmail.email.toLowerCase().trim(), password: credentialsOrEmail.password };
 
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('ajp_token') : null;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -167,6 +247,7 @@ class AuthService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // 1. Primary Login against MySQL backend
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers,
@@ -175,6 +256,15 @@ class AuthService {
     });
 
     const resData = await parseSafeResponse(response, 'Invalid email or password.');
+
+    // 2. Firebase Auth login sync in background
+    try {
+      if (payload.email && payload.password) {
+        await signInWithEmailAndPassword(auth, payload.email, payload.password).catch(() => {});
+      }
+    } catch {
+      // Ignore background sync errors
+    }
 
     this.currentUser = resData.user;
     if (resData.token && typeof window !== 'undefined') {
@@ -185,14 +275,71 @@ class AuthService {
   }
 
   /**
-   * Google sign in / OAuth placeholder integration
+   * Firebase Google Sign-In with Firestore and MySQL backend synchronization
    */
   async loginWithGoogle(): Promise<User> {
-    throw new Error('Google Sign-In is disabled. Please use your email and password to sign in directly.');
+    try {
+      // 1. Trigger Firebase Auth Google popup
+      const userCredential = await signInWithPopup(auth, googleAuthProvider);
+      const fbUser = userCredential.user;
+
+      if (!fbUser || !fbUser.email) {
+        throw new Error('Google sign-in did not return a valid email address.');
+      }
+
+      // 2. Sync / Upsert in Firestore
+      const userDocRef = doc(firestore, 'users', fbUser.uid);
+      await setDoc(
+        userDocRef,
+        {
+          id: fbUser.uid,
+          email: fbUser.email.toLowerCase().trim(),
+          name: fbUser.displayName || fbUser.email.split('@')[0],
+          avatar: fbUser.photoURL || '',
+          isVerified: true,
+          isActive: true,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      ).catch((fsErr) => console.warn('Firestore write warning:', fsErr));
+
+      // 3. Synchronize with local MySQL backend session and obtain JWT access token
+      const syncResponse = await fetch('/api/auth/google-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: fbUser.email,
+          name: fbUser.displayName || fbUser.email.split('@')[0],
+          uid: fbUser.uid,
+          photoURL: fbUser.photoURL || '',
+          role: 'author'
+        })
+      });
+
+      const resData = await parseSafeResponse(syncResponse, 'Failed to complete Google authentication.');
+
+      this.currentUser = resData.user;
+      if (resData.token && typeof window !== 'undefined') {
+        sessionStorage.setItem('ajp_token', resData.token);
+      }
+      this.notifyListeners();
+      return resData.user;
+    } catch (err: any) {
+      console.error('Google Sign-In failed:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        throw new Error('Google Sign-In popup was closed before completing.');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        throw new Error('Google Sign-In request was cancelled.');
+      } else if (err.code === 'auth/popup-blocked') {
+        throw new Error('Google Sign-In popup was blocked by the browser. Please allow popups.');
+      }
+      throw new Error(err.message || 'Failed to sign in with Google.');
+    }
   }
 
   /**
-   * Logout user session
+   * Logout user session across MySQL backend and Firebase Auth
    */
   async logout(): Promise<void> {
     try {
@@ -207,7 +354,13 @@ class AuthService {
         credentials: 'include'
       });
     } catch {
-      // Ignore network errors on logout
+      // Ignore network errors on backend logout
+    }
+
+    try {
+      await signOut(auth);
+    } catch {
+      // Ignore Firebase signOut error
     }
 
     this.currentUser = null;
@@ -218,15 +371,25 @@ class AuthService {
   }
 
   /**
-   * Request password reset
+   * Request password reset via MySQL backend and Firebase Auth
    */
   async resetPassword(email: string): Promise<void> {
+    const cleanEmail = email.toLowerCase().trim();
+
+    // 1. Backend password reset dispatch
     const response = await fetch('/api/auth/forgot-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email: cleanEmail })
     });
     await parseSafeResponse(response, 'Failed to request password reset.');
+
+    // 2. Also attempt Firebase Auth password reset email
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+    } catch {
+      // Silently fall back to backend email dispatch
+    }
   }
 
   /**
