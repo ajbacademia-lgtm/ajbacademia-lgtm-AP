@@ -12,10 +12,6 @@
 --   mysql -u your_db_user -p your_db_name < schema.sql
 -- =============================================================================
 
-CREATE DATABASE IF NOT EXISTS academic_journal_db
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE academic_journal_db;
-
 CREATE TABLE IF NOT EXISTS journals (
         id VARCHAR(128) PRIMARY KEY,
         title VARCHAR(512) NOT NULL,
